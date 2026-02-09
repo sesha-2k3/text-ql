@@ -18,15 +18,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # API Keys
+    # Google API Key (for Gemini via ADK)
+    google_api_key: str = ""
+
+    # Groq API Key (fallback)
     groq_api_key: str = ""
 
     # Model Configuration
+    gemini_model: str = "gemini-2.0-flash"
     planner_model: str = "llama-3.3-70b-versatile"
     sql_writer_model: str = "llama-3.3-70b-versatile"
 
     # Local SQLCoder Configuration via Ollama
-    use_local_sqlcoder: bool = True
+    use_local_sqlcoder: bool = False
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "sqlcoder"
 

@@ -64,6 +64,8 @@ Thumbs.db
 # Local config
 .env.local
 .env.*.local
+requirements-dev.txt
+PROJECT_ARCHITECTURE.md
 
 # SQLCoder models (large files)
 *.gguf
