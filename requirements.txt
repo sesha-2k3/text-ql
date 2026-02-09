@@ -1,0 +1,11 @@
+# Core dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.9.0
+pydantic-settings>=2.6.0
+groq>=0.11.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+
+# Google ADK for agent orchestration
+google-adk>=1.0.0
