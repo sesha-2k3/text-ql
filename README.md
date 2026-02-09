@@ -12,12 +12,12 @@ text-ql converts natural language questions into SQL queries. It uses a pipeline
 
 ## Features
 
-- ✅ **Natural language input** - Ask questions in plain English
-- ✅ **Schema-aware generation** - Provide your database schema for accurate queries
-- ✅ **Placeholder system** - When schema is missing, generates SQL with `<PLACEHOLDER>` tokens
-- ✅ **Smart validation** - Enforces LIMIT, detects dangerous operations, validates against schema
-- ✅ **All SQL types** - Supports SELECT, INSERT, UPDATE, DELETE with appropriate warnings
-- ✅ **Multiple dialects** - PostgreSQL, MySQL, SQLite
+- **Natural language input** - Ask questions in plain English
+- **Schema-aware generation** - Provide your database schema for accurate queries
+- **Placeholder system** - When schema is missing, generates SQL with `<PLACEHOLDER>` tokens
+- **Smart validation** - Enforces LIMIT, detects dangerous operations, validates against schema
+- **All SQL types** - Supports SELECT, INSERT, UPDATE, DELETE with appropriate warnings
+- **Multiple dialects** - PostgreSQL, MySQL, SQLite
 
 ## Quick Start
 
@@ -258,8 +258,4 @@ mypy .
 | Agent | Model | Provider |
 |-------|-------|----------|
 | PlannerAgent | llama-3.3-70b-versatile | Groq (cloud) |
-| SqlWriterAgent | sqlcoder-7b-q4_0 | Local (llama.cpp) |
-
-## License
-
-MIT
+| SqlWriterAgent | sqlcoder-7b-q4_0 | Local (ollama) |
