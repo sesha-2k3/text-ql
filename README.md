@@ -246,12 +246,11 @@ mypy .
 
 ## Architecture Decisions
 
-1. **Google ADK orchestration** - Uses SequentialAgent to chain pipeline stages
-2. **Two LLM agents** - PlannerAgent (Groq/LLaMA 3.3 70b) + SqlWriterAgent (Local SQLCoder 7b)
-3. **Deterministic policy gate** - No LLM for validation; faster, more predictable
-4. **Single schema format** - JSON only, reduces complexity
-5. **Placeholders over hallucination** - When schema is missing, use explicit `<PLACEHOLDER>` tokens
-6. **Warnings over rejection** - Allow all SQL types with appropriate warnings
+1. **Two LLM agents** - PlannerAgent (Groq/LLaMA 3.3 70b) + SqlWriterAgent (Local SQLCoder 7b)
+2. **Deterministic policy gate** - No LLM for validation; faster, more predictable
+3. **Single schema format** - JSON only, reduces complexity
+4. **Placeholders over hallucination** - When schema is missing, use explicit `<PLACEHOLDER>` tokens
+5. **Warnings over rejection** - Allow all SQL types with appropriate warnings
 
 ## Model Configuration
 
