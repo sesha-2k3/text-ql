@@ -13,7 +13,7 @@ import logging
 import os
 import re
 import json
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, ClassVar
 
 import httpx
 
@@ -29,6 +29,7 @@ from google.adk.events import Event, EventActions
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from pydantic import Field
 
 from api.models import (
     Placeholder,
@@ -50,7 +51,7 @@ USER_ID = "default_user"
 
 
 # ============================================================================
-# Custom SQLCoder Agent (extends BaseAgent)
+# Custom SQLCoder Agent (extends BaseAgent with Pydantic fields)
 # ============================================================================
 
 class OllamaSqlCoderAgent(BaseAgent):
@@ -59,21 +60,24 @@ class OllamaSqlCoderAgent(BaseAgent):
     
     This demonstrates how to integrate non-Gemini models into an ADK pipeline
     by extending BaseAgent and implementing the _run_async_impl method.
+    
+    Note: BaseAgent is a Pydantic model, so we must declare fields properly.
     """
     
-    def __init__(
-        self,
-        name: str = "SqlCoderAgent",
-        ollama_base_url: str = "http://localhost:11434",
-        ollama_model: str = "sqlcoder",
-        output_key: str = "generated_sql",
-        **kwargs
-    ):
-        super().__init__(name=name, **kwargs)
-        self.ollama_base_url = ollama_base_url.rstrip("/")
-        self.ollama_model = ollama_model
-        self.output_key = output_key
-        self.client = httpx.AsyncClient(timeout=120.0)
+    # Declare Pydantic fields (these are allowed by BaseAgent)
+    ollama_base_url: str = Field(default="http://localhost:11434")
+    ollama_model: str = Field(default="sqlcoder")
+    output_key: str = Field(default="generated_sql")
+    
+    # Use ClassVar for the HTTP client (not a Pydantic field)
+    _client: ClassVar[httpx.AsyncClient | None] = None
+    
+    @classmethod
+    def get_client(cls) -> httpx.AsyncClient:
+        """Get or create the shared HTTP client."""
+        if cls._client is None:
+            cls._client = httpx.AsyncClient(timeout=120.0)
+        return cls._client
     
     async def _run_async_impl(
         self, 
@@ -103,10 +107,14 @@ class OllamaSqlCoderAgent(BaseAgent):
         
         logger.debug(f"[{self.name}] Prompt: {prompt[:500]}...")
         
+        # Get Ollama URL (strip trailing slash)
+        base_url = self.ollama_base_url.rstrip("/")
+        
         try:
             # Call Ollama API
-            response = await self.client.post(
-                f"{self.ollama_base_url}/api/generate",
+            client = self.get_client()
+            response = await client.post(
+                f"{base_url}/api/generate",
                 json={
                     "model": self.ollama_model,
                     "prompt": prompt,
@@ -128,7 +136,7 @@ class OllamaSqlCoderAgent(BaseAgent):
             logger.info(f"[{self.name}] Generated SQL: {sql[:100]}...")
             
         except httpx.ConnectError:
-            logger.error(f"[{self.name}] Failed to connect to Ollama at {self.ollama_base_url}")
+            logger.error(f"[{self.name}] Failed to connect to Ollama at {base_url}")
             sql = "SELECT * FROM <TABLE> -- Error: Could not connect to Ollama"
         except Exception as e:
             logger.error(f"[{self.name}] Error: {e}")
@@ -219,9 +227,13 @@ SELECT"""
         if not sql.upper().startswith(("SELECT", "INSERT", "UPDATE", "DELETE", "WITH")):
             sql = "SELECT " + sql
         
-        # Remove special tokens
-        sql = re.sub(r'</?s>', '', sql)
-        sql = re.sub(r'<\|.*?\|>', '', sql)
+        # Remove special tokens - be VERY specific to avoid removing SQL operators
+        # Use word boundaries and whitespace to be safe
+        sql = re.sub(r'^\s*<s>\s*', '', sql)           # <s> at start
+        sql = re.sub(r'\s*</s>\s*$', '', sql)          # </s> at end
+        sql = re.sub(r'\s+<s>\s+', ' ', sql)           # <s> in middle (with spaces)
+        sql = re.sub(r'\s+</s>\s+', ' ', sql)          # </s> in middle (with spaces)
+        sql = re.sub(r'<\|[^>]*\|>', '', sql)          # <|endoftext|> etc.
         sql = re.sub(r'\[INST\].*?\[/INST\]', '', sql, flags=re.DOTALL)
         
         # Remove markdown code blocks
@@ -432,6 +444,8 @@ async def run_hybrid_pipeline(
     """
     Run the hybrid text-ql pipeline.
     
+    Falls back to Groq if Gemini rate limit is exceeded.
+    
     Args:
         question: Natural language question
         dialect: SQL dialect (postgres, mysql, sqlite)
@@ -516,6 +530,33 @@ Generate a SQL query to answer this question."""
         )
         
     except Exception as e:
+        error_str = str(e).lower()
+        
+        # Check if it's a rate limit error (429) or quota exhausted
+        is_rate_limit = (
+            "429" in error_str or 
+            "resource_exhausted" in error_str or 
+            "quota" in error_str or
+            "rate" in error_str
+        )
+        
+        if is_rate_limit:
+            logger.warning(f"Gemini rate limited, falling back to Groq: {e}")
+            try:
+                # Fall back to Groq-based pipeline
+                return await _run_groq_fallback(question, dialect, schema_json)
+            except Exception as fallback_error:
+                logger.exception(f"Groq fallback also failed: {fallback_error}")
+                return QueryResponse(
+                    sql=None,
+                    status=QueryStatus.ERROR,
+                    placeholders=[],
+                    warnings=["Gemini rate limited, Groq fallback also failed"],
+                    clarifying_questions=[],
+                    assumptions=[],
+                    policy_errors=[f"Both Gemini and Groq failed: {str(fallback_error)}"]
+                )
+        
         logger.exception(f"Hybrid Pipeline error: {e}")
         return QueryResponse(
             sql=None,
@@ -535,6 +576,45 @@ Generate a SQL query to answer this question."""
             )
         except Exception:
             pass
+
+
+async def _run_groq_fallback(
+    question: str,
+    dialect: str,
+    schema_json: dict[str, Any] | None,
+) -> QueryResponse:
+    """
+    Fallback to Groq when Gemini is rate limited.
+    
+    Uses the basic pipeline from root.py which uses Groq + Ollama.
+    """
+    logger.info("Using Groq fallback pipeline...")
+    
+    # Import and run the basic pipeline (which uses Groq)
+    from orchestrator.root import run_pipeline as run_basic_pipeline
+    
+    # Run in a thread pool since the basic pipeline is synchronous
+    import asyncio
+    loop = asyncio.get_event_loop()
+    
+    response = await loop.run_in_executor(
+        None,
+        lambda: run_basic_pipeline(question, dialect, schema_json)
+    )
+    
+    # Add a warning that we used the fallback
+    warnings = list(response.warnings)
+    warnings.insert(0, "⚡ Used Groq fallback (Gemini rate limited)")
+    
+    return QueryResponse(
+        sql=response.sql,
+        status=response.status,
+        placeholders=response.placeholders,
+        warnings=warnings,
+        clarifying_questions=response.clarifying_questions,
+        assumptions=response.assumptions,
+        policy_errors=response.policy_errors
+    )
 
 
 def _parse_planner_output(output: str | None) -> dict:
