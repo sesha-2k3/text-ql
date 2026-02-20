@@ -4,7 +4,7 @@ Natural Language to SQL converter using a multi-agent architecture.
 
 ## Overview
 
-text-ql converts natural language questions into SQL queries. It uses a pipeline of specialized agents:
+text-ql is a web app that converts natural language questions into SQL queries. It uses a pipeline of specialized agents:
 
 1. **PlannerAgent** - Analyzes questions, identifies missing schema info, generates clarifying questions
 2. **SqlWriterAgent** - Generates SQL from natural language using the analyzed context
