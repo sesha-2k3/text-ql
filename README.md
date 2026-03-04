@@ -14,7 +14,7 @@ text-ql is a web app that converts natural language questions into SQL queries. 
 
 - **Natural language input** - Ask questions in plain English
 - **Schema-aware generation** - Provide your database schema for accurate queries
-- **Placeholder system** - When schema is missing, generates SQL with `<PLACEHOLDER>` tokens
+- **Placeholder system** - When schema (table_name or column_name) is missing, generates SQL with `<PLACEHOLDER>` tokens
 - **Smart validation** - Enforces LIMIT, detects dangerous operations, validates against schema
 - **All SQL types** - Supports SELECT, INSERT, UPDATE, DELETE with appropriate warnings
 - **Multiple dialects** - PostgreSQL, MySQL, SQLite
