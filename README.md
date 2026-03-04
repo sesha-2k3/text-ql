@@ -251,10 +251,4 @@ mypy .
 3. **Single schema format** - JSON only, reduces complexity
 4. **Placeholders over hallucination** - When schema is missing, use explicit `<PLACEHOLDER>` tokens
 5. **Warnings over rejection** - Allow all SQL types with appropriate warnings
-
-## Model Configuration
-
-| Agent | Model | Provider |
-|-------|-------|----------|
-| PlannerAgent | llama-3.3-70b-versatile | Groq (cloud) |
-| SqlWriterAgent | sqlcoder-7b-q4_0 | Local (ollama) |
+---
